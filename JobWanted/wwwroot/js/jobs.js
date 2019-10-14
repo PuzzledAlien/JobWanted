@@ -118,7 +118,7 @@
             queryString: function (name) {
                 var url = encodeURI(location.search); //获取url中"?"符后的字串
                 var theRequest = new Object();
-                if (url.indexOf("?") != -1) {
+                if (url.indexOf("?") !== -1) {
                     var str = url.substr(1);
                     strs = str.split("&");
                     for (var i = 0; i < strs.length; i++) {
@@ -238,7 +238,7 @@
 
             //回车搜索
             $(".jobKey").keydown(function (event) {
-                if (event.keyCode == 13)
+                if (event.keyCode === 13)
                     reloadLoad();
             });
 
@@ -290,7 +290,7 @@
             $(window).scroll(function () {
                 var scrollTop = $(window).scrollTop();
                 var top = $(document).height() - $(window).height() - scrollTop;
-                if (top == 0) {
+                if (top === 0) {
                     _pageData.pageIndex++;
                     autoLoad();
                 }
