@@ -16,6 +16,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="3.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="3.0.0" />
     <PackageReference Include="Microsoft.VisualStudio.Web.BrowserLink" Version="2.2.0" />
+    <PackageReference Include="Selenium.Support" Version="4.0.0-alpha03" />
+    <PackageReference Include="Selenium.WebDriver.ChromeDriver" Version="78.0.3904.1100-beta" />
+    <PackageReference Include="Selenium.WebDriverBackedSelenium" Version="4.0.0-alpha03" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.6.0" />
     <PackageReference Include="Talk.Cache" Version="1.0.0-test" />
   </ItemGroup>

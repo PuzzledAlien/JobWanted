@@ -10,6 +10,9 @@ using AngleSharp.Html.Parser;
 using Talk.Cache;
 using Newtonsoft.Json;
 using JobWanted.Dto;
+using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.Support.Extensions;
+using OpenQA.Selenium.Support.UI;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 /*
@@ -49,7 +52,7 @@ namespace JobWanted.Controllers
                 PositionName = t.JobName,
                 CorporateName = t.Company.Name,
                 Salary = t.Salary,
-                WorkingPlace = $"{t.City.Display}{(string.IsNullOrEmpty(t.BusinessArea)? string.Empty : "-"+ t.BusinessArea)}",
+                WorkingPlace = $"{t.City.Display}{(string.IsNullOrEmpty(t.BusinessArea) ? string.Empty : "-" + t.BusinessArea)}",
                 ReleaseDate = t.UpdateDate,
                 DetailsUrl = t.PositionURL,
             }).ToList();
@@ -141,14 +144,23 @@ namespace JobWanted.Controllers
         /// <returns></returns>
         public async Task<List<JobInfo>> GetJobsByBS(string city, string key, int index)
         {
+            if (index <= 0)
+            {
+                index = 1;
+            }
             var cache = GetCacheObject(20);
             var data = cache.GetData();
             if (data != null)
                 return data.Data;
 
             var cityCode = CodesData.GetCityCode(RecruitEnum.BOSS, city);
-            var url = $"http://www.zhipin.com/c{cityCode}/h_{cityCode}/?query={key}&page={index}";
-            using var http = new HttpClient();
+            var url = $"https://www.zhipin.com/c{cityCode}/?query={key}&page={index}&ka=page-{index}";
+            var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = true
+            };
+            using var http = new HttpClient(handler);
             var htmlString = await http.GetStringAsync(url);
             var htmlParser = new HtmlParser();
             var document = await htmlParser.ParseDocumentAsync(htmlString);
@@ -183,36 +195,43 @@ namespace JobWanted.Controllers
             if (data != null)
                 return data.Data;
 
-            //不知道为什么抓不到数据？ https 的原因？？ 【170819，终于搞定】
-            StringContent fromurlcontent = new StringContent("first=false&pn=" + index + "&kd=" + key);
-            fromurlcontent.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
-            var url = $"https://www.lagou.com/jobs/positionAjax.json?px=new&city={city}&needAddtionalResult=false&isSchoolJob=0";
-            using var http = new HttpClient();
-            //http.DefaultRequestHeaders.Remove("x-ms-request-root-id");
-            //http.DefaultRequestHeaders.Remove("x-ms-request-id");
-            //http.DefaultRequestHeaders.Remove("Request-Id"); 
-            //http.DefaultRequestHeaders.Host = "www.lagou.com";
-            //http.DefaultRequestHeaders.Add("Accept", "application/json");
-            //http.DefaultRequestHeaders.Add("X-Anit-Forge-Token", "None");
-
-            //😄😄😄，拉勾网 后台检测了user-agent、X-Requested-With、Referer还会检测list_是否有参数
-            http.DefaultRequestHeaders.Add("Referer", "https://www.lagou.com/jobs/list_.net");
-            http.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0");
-            http.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
-
-            var responseMsg = await http.PostAsync(new Uri(url), fromurlcontent);
-            var htmlString = await responseMsg.Content.ReadAsStringAsync();
-            var lagouData = JsonConvert.DeserializeObject<LagouData>(htmlString);
-            var resultDatas = lagouData.content.positionResult.result;
-            var jobInfos = resultDatas.Select(t => new JobInfo()
+            var searchUrl = $@"https://www.lagou.com/jobs/list_{key}?px=new&city={city}#order";
+            var option = new ChromeOptions();
+            option.AddArgument("headless");
+            using var driver = new ChromeDriver(option);
+            var navigate = driver.Navigate();
+            navigate.GoToUrl(searchUrl);
+            var pageSource = driver.PageSource;
+            var htmlParser = new HtmlParser();
+            var document = await htmlParser.ParseDocumentAsync(pageSource);
+            var elements = document.QuerySelectorAll(".s_position_list ul li");
+            var jobInfos = new List<JobInfo>();
+            foreach (var element in elements)
             {
-                PositionName = t.positionName,
-                CorporateName = t.companyShortName,
-                Salary = t.salary,
-                WorkingPlace = t.district + (t.businessZones == null ? "" : t.businessZones.Length <= 0 ? "" : t.businessZones[0]),
-                ReleaseDate = DateTime.Parse(t.createTime).ToString("yyyy-MM-dd"),
-                DetailsUrl = "https://www.lagou.com/jobs/" + t.positionId + ".html"
-            }).ToList();
+                if (!element.ClassName.Contains("con_list_item"))
+                {
+                    continue;
+                }
+                var positionName = element.QuerySelector(".position_link h3").TextContent;
+                var corporateName = element.QuerySelector(".company_name a").TextContent;
+                var salary = element.QuerySelector(".p_bot div span").TextContent;
+                var workingPlace = element.QuerySelector(".position_link span em").TextContent;
+                var releaseDate = element.QuerySelector(".format-time").TextContent;
+                var detailsUrl = element.QuerySelector(".position_link").GetAttribute("href");
+
+                var jobInfo = new JobInfo
+                {
+                    PositionName = positionName,
+                    CorporateName = corporateName,
+                    DetailsUrl = detailsUrl,
+                    WorkingPlace = workingPlace,
+                    Salary = salary,
+                    ReleaseDate = releaseDate
+                };
+
+                jobInfos.Add(jobInfo);
+            }
+
             cache.AddData(jobInfos);//添加缓存
             return jobInfos;
         }
