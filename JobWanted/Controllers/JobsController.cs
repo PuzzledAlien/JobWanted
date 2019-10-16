@@ -10,6 +10,7 @@ using AngleSharp.Html.Parser;
 using Talk.Cache;
 using Newtonsoft.Json;
 using JobWanted.Dto;
+using Microsoft.Extensions.Caching.Memory;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.Extensions;
 using OpenQA.Selenium.Support.UI;
@@ -26,6 +27,11 @@ namespace JobWanted.Controllers
     [Route("api/[controller]/[action]")]
     public class JobsController : Controller
     {
+        private IMemoryCache _cache;
+        public JobsController(IMemoryCache cache)
+        {
+            _cache = cache;
+        }
         /// <summary>
         /// 获取智联信息(简要信息)
         /// </summary>
@@ -181,6 +187,35 @@ namespace JobWanted.Controllers
             return jobInfos;
         }
 
+        public string GetLaGouToken(string city, string key)
+        {
+            var cacheKey = "拉勾" + city + key;
+            var time = DateTime.Now.AddMinutes(10) - DateTime.Now;//缓存10分钟
+            var easyCache = new EasyCache<string>(cacheKey, time);
+            var cacheData = easyCache.GetData();
+            if (cacheData != null)
+            {
+                return cacheData.Data;
+            }
+
+            var searchUrl = $@"https://www.lagou.com/jobs/list_{key}?px=new&city={city}#order";
+            var option = new ChromeOptions();
+            option.AddArgument("headless");
+            using var driver = new ChromeDriver(option);
+            var navigate = driver.Navigate();
+            navigate.GoToUrl(searchUrl);
+            var allCookies = driver.Manage().Cookies.AllCookies;
+            var sb = new StringBuilder();
+            foreach (var cookie in allCookies)
+            {
+                sb.Append($"{cookie.Name}={cookie.Value};");
+            }
+
+            var token = sb.ToString();
+            easyCache.AddData(token);
+            return token;
+        }
+
         /// <summary>
         /// 获取拉勾信息(简要信息)
         /// </summary>
@@ -195,42 +230,28 @@ namespace JobWanted.Controllers
             if (data != null)
                 return data.Data;
 
-            var searchUrl = $@"https://www.lagou.com/jobs/list_{key}?px=new&city={city}#order";
-            var option = new ChromeOptions();
-            option.AddArgument("headless");
-            using var driver = new ChromeDriver(option);
-            var navigate = driver.Navigate();
-            navigate.GoToUrl(searchUrl);
-            var pageSource = driver.PageSource;
-            var htmlParser = new HtmlParser();
-            var document = await htmlParser.ParseDocumentAsync(pageSource);
-            var elements = document.QuerySelectorAll(".s_position_list ul li");
-            var jobInfos = new List<JobInfo>();
-            foreach (var element in elements)
+            var fromurlcontent = new StringContent("first=false&pn=" + index + "&kd=" + key);
+            fromurlcontent.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
+            var url = $"https://www.lagou.com/jobs/positionAjax.json?px=new&city={city}&needAddtionalResult=false&isSchoolJob=0";
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Add("Referer", "https://www.lagou.com/jobs/list_.net");
+            http.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0");
+            http.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+            var token = GetLaGouToken(city, key);
+            http.DefaultRequestHeaders.Add("Cookie", token);
+            var responseMsg = await http.PostAsync(new Uri(url), fromurlcontent);
+            var htmlString = await responseMsg.Content.ReadAsStringAsync();
+            var lagouData = JsonConvert.DeserializeObject<LagouData>(htmlString);
+            var resultDatas = lagouData.content.positionResult.result;
+            var jobInfos = resultDatas.Select(t => new JobInfo()
             {
-                if (!element.ClassName.Contains("con_list_item"))
-                {
-                    continue;
-                }
-                var positionName = element.QuerySelector(".position_link h3").TextContent;
-                var corporateName = element.QuerySelector(".company_name a").TextContent;
-                var salary = element.QuerySelector(".p_bot div span").TextContent;
-                var workingPlace = element.QuerySelector(".position_link span em").TextContent;
-                var releaseDate = element.QuerySelector(".format-time").TextContent;
-                var detailsUrl = element.QuerySelector(".position_link").GetAttribute("href");
-
-                var jobInfo = new JobInfo
-                {
-                    PositionName = positionName,
-                    CorporateName = corporateName,
-                    DetailsUrl = detailsUrl,
-                    WorkingPlace = workingPlace,
-                    Salary = salary,
-                    ReleaseDate = releaseDate
-                };
-
-                jobInfos.Add(jobInfo);
-            }
+                PositionName = t.positionName,
+                CorporateName = t.companyShortName,
+                Salary = t.salary,
+                WorkingPlace = t.district + (t.businessZones == null ? "" : t.businessZones.Length <= 0 ? "" : t.businessZones[0]),
+                ReleaseDate = DateTime.Parse(t.createTime).ToString("yyyy-MM-dd"),
+                DetailsUrl = "https://www.lagou.com/jobs/" + t.positionId + ".html"
+            }).ToList();
 
             cache.AddData(jobInfos);//添加缓存
             return jobInfos;
