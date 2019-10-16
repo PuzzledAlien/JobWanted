@@ -10,10 +10,6 @@ using AngleSharp.Html.Parser;
 using Talk.Cache;
 using Newtonsoft.Json;
 using JobWanted.Dto;
-using Microsoft.Extensions.Caching.Memory;
-using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Support.Extensions;
-using OpenQA.Selenium.Support.UI;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 /*
@@ -27,11 +23,6 @@ namespace JobWanted.Controllers
     [Route("api/[controller]/[action]")]
     public class JobsController : Controller
     {
-        private IMemoryCache _cache;
-        public JobsController(IMemoryCache cache)
-        {
-            _cache = cache;
-        }
         /// <summary>
         /// 获取智联信息(简要信息)
         /// </summary>
@@ -187,7 +178,7 @@ namespace JobWanted.Controllers
             return jobInfos;
         }
 
-        public string GetLaGouToken(string city, string key)
+        public async Task<string> GetLaGouToken(string city, string key)
         {
             var cacheKey = "拉勾" + city + key;
             var time = DateTime.Now.AddMinutes(10) - DateTime.Now;//缓存10分钟
@@ -199,18 +190,20 @@ namespace JobWanted.Controllers
             }
 
             var searchUrl = $@"https://www.lagou.com/jobs/list_{key}?px=new&city={city}#order";
-            var option = new ChromeOptions();
-            option.AddArgument("headless");
-            using var driver = new ChromeDriver(option);
-            var navigate = driver.Navigate();
-            navigate.GoToUrl(searchUrl);
-            var allCookies = driver.Manage().Cookies.AllCookies;
+            using var client = new HttpClient();
+            var httpResponseMessage = await client.GetAsync(searchUrl);
+            var cookies = httpResponseMessage.Headers.GetValues("Set-Cookie");
             var sb = new StringBuilder();
-            foreach (var cookie in allCookies)
+            foreach (var cookie in cookies)
             {
-                sb.Append($"{cookie.Name}={cookie.Value};");
+                var split = cookie.Split(";");
+                if (split.Length <= 0)
+                {
+                    continue;
+                }
+                sb.Append(split[0]);
+                sb.Append(";");
             }
-
             var token = sb.ToString();
             easyCache.AddData(token);
             return token;
@@ -237,7 +230,7 @@ namespace JobWanted.Controllers
             http.DefaultRequestHeaders.Add("Referer", "https://www.lagou.com/jobs/list_.net");
             http.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0");
             http.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
-            var token = GetLaGouToken(city, key);
+            var token = await GetLaGouToken(city, key);
             http.DefaultRequestHeaders.Add("Cookie", token);
             var responseMsg = await http.PostAsync(new Uri(url), fromurlcontent);
             var htmlString = await responseMsg.Content.ReadAsStringAsync();
