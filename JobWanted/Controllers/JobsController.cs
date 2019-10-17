@@ -40,7 +40,12 @@ namespace JobWanted.Controllers
             const int pageSize = 90;
             var start = (index - 1) * pageSize;
             var url = $"https://fe-api.zhaopin.com/c/i/sou?start={start}&pageSize={pageSize}&cityId={cityCode}&salary=0,0&workExperience=-1&education=-1&companyType=-1&employmentType=-1&jobWelfareTag=-1&sortType=publish&kw={key}&kt=3";
-            using var http = new HttpClient();
+            var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = true,
+                UseCookies = true
+            };
+            using var http = new HttpClient(handler);
             var htmlString = await http.GetStringAsync(url);
             var zlResponse = JsonConvert.DeserializeObject<ZlResponse<ZlSouResponse>>(htmlString);
             var jobInfos = zlResponse?.Data?.Results?.Select(t => new JobInfo
