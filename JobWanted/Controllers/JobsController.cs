@@ -35,7 +35,7 @@ namespace JobWanted.Controllers
             var cache = GetCacheObject();
             var data = cache.GetData();
             if (data != null)
-                return data.Data;
+                return data;
 
             var cityCode = CodesData.GetCityCode(RecruitEnum.智联招聘, city);
             const int pageSize = 90;
@@ -69,7 +69,7 @@ namespace JobWanted.Controllers
             var cache = GetCacheObject();
             var data = cache.GetData();
             if (data != null)
-                return data.Data;
+                return data;
 
             var cityCode = CodesData.GetCityCode(RecruitEnum.猎聘网, city);
             var url = $"https://www.liepin.cn/zhaopin/?key={key}&dqs={cityCode}&curPage={index}";
@@ -106,7 +106,7 @@ namespace JobWanted.Controllers
             var cache = GetCacheObject();
             var data = cache.GetData();
             if (data != null)
-                return data.Data;
+                return data;
 
             var cityCode = CodesData.GetCityCode(RecruitEnum.前程无忧, city);
             var url = $"http://search.51job.com/jobsearch/search_result.php?jobarea={cityCode}&keyword={key}&curr_page={index}";
@@ -132,14 +132,41 @@ namespace JobWanted.Controllers
             return jobInfos;
         }
 
+        public async Task<BossTokenParamDto> GetBossTokenParamAsync(string city, string key, int index)
+        {
+            var cityCode = CodesData.GetCityCode(RecruitEnum.BOSS, city);
+            var url = $"https://www.zhipin.com/c{cityCode}/?query={key}&page={index}&ka=page-{index}";
+            var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = true,
+                UseCookies = true
+            };
+            using var client = new HttpClient(handler);
+            var httpResponseMessage = await client.GetAsync(url);
+            var requestUri = httpResponseMessage.RequestMessage.RequestUri;
+            var nameValueCollection = System.Web.HttpUtility.ParseQueryString(requestUri.Query);
+            var seed = nameValueCollection.Get("seed");
+            var ts = nameValueCollection.Get("ts");
+            var fileName = nameValueCollection.Get("name");
+            var filePath = requestUri.AbsoluteUri.Split("?")[0].Replace("security-check.html", $"security-js/{fileName}.js");
+            return new BossTokenParamDto
+            {
+                Seed = seed,
+                Ts = ts,
+                FileName = fileName,
+                FilePath = filePath
+            };
+        }
+
         /// <summary>
         /// BOSS直聘信息(简要信息)
         /// </summary>
         /// <param name="city"></param>
         /// <param name="key"></param>
         /// <param name="index"></param>
+        /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<List<JobInfo>> GetJobsByBS(string city, string key, int index)
+        public async Task<List<JobInfo>> GetJobsByBS(string city, string key, int index, string token)
         {
             if (index <= 0)
             {
@@ -148,17 +175,14 @@ namespace JobWanted.Controllers
             var cache = GetCacheObject(20);
             var data = cache.GetData();
             if (data != null)
-                return data.Data;
+                return data;
 
             var cityCode = CodesData.GetCityCode(RecruitEnum.BOSS, city);
             var url = $"https://www.zhipin.com/c{cityCode}/?query={key}&page={index}&ka=page-{index}";
-            var handler = new HttpClientHandler
-            {
-                AllowAutoRedirect = false,
-                UseCookies = true
-            };
-            using var http = new HttpClient(handler);
-            var htmlString = await http.GetStringAsync(url);
+            using var client = new HttpClient();
+            var cookie = $"__zp_stoken__={token}";
+            client.DefaultRequestHeaders.Add("Cookie", cookie);
+            var htmlString = await client.GetStringAsync(url);
             var htmlParser = new HtmlParser();
             var document = await htmlParser.ParseDocumentAsync(htmlString);
             var jobInfos = document.QuerySelectorAll(".job-list ul li")
@@ -186,7 +210,7 @@ namespace JobWanted.Controllers
             var cacheData = easyCache.GetData();
             if (cacheData != null)
             {
-                return cacheData.Data;
+                return cacheData;
             }
 
             var searchUrl = $@"https://www.lagou.com/jobs/list_{key}?px=new&city={city}#order";
@@ -221,7 +245,7 @@ namespace JobWanted.Controllers
             var cache = GetCacheObject(20);
             var data = cache.GetData();
             if (data != null)
-                return data.Data;
+                return data;
 
             var fromurlcontent = new StringContent("first=false&pn=" + index + "&kd=" + key);
             fromurlcontent.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
