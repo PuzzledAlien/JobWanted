@@ -20,7 +20,6 @@ using JobWanted.Dto;
 
 namespace JobWanted.Controllers
 {
-    [Route("api/[controller]/[action]")]
     public class JobsController : Controller
     {
         /// <summary>
@@ -30,7 +29,7 @@ namespace JobWanted.Controllers
         /// <param name="key"></param>
         /// <param name="index"></param>
         /// <returns></returns>
-        public async Task<List<JobInfo>> GetJobsByZL(string city, string key, int index)
+        public async Task<List<JobInfo>> GetJobsByZhiL(string city, string key, int index)
         {
             var cache = GetCacheObject();
             var data = cache.GetData();

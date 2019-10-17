@@ -22,7 +22,7 @@
                 var tempHtml = "";
                 var source = "", salaryType = "月薪";
                 switch (type) {
-                    case "GetJobsByZL":
+                    case "GetJobsByZhiL":
                         source = "智联";
                         break;
                     case "GetJobsByLP":
@@ -41,7 +41,7 @@
                 }
 
                 $.ajax({
-                    url: "/api/jobs/" + type + "?city=" + city + "&key=" + key + "&index=" + index,
+                    url: "/jobs/" + type + "?city=" + city + "&key=" + key + "&index=" + index,
                     data: "",
                     success: function (sData) {
                         for (var i = 0; i < sData.length; i++) {
@@ -98,7 +98,7 @@
                 }
 
                 $.ajax({
-                    url: "/api/jobs/" + urlType + "?url=" + url,
+                    url: "/jobs/" + urlType + "?url=" + url,
                     success: function (sData) {
                         if (sData) {
                             var tempHtml = "";
@@ -158,7 +158,7 @@
 
             $.each(types, function (i, e) {
                 if (e === "0")
-                    method.loadJobsInfo("GetJobsByZL", _pageData.city, _pageData.key, _pageData.pageIndex);
+                    method.loadJobsInfo("GetJobsByZhiL", _pageData.city, _pageData.key, _pageData.pageIndex);
                 if (e === "1")
                     method.loadJobsInfo("GetJobsByQC", _pageData.city, _pageData.key, _pageData.pageIndex);
                 if (e === "2")
@@ -180,7 +180,7 @@
                 var type = "";             
                 if (_pageData.isGetJobsByZL) {
                     type += "0-";
-                    method.loadJobsInfo("GetJobsByZL", _pageData.city, _pageData.key, _pageData.pageIndex);
+                    method.loadJobsInfo("GetJobsByZhiL", _pageData.city, _pageData.key, _pageData.pageIndex);
                 }
                 if (_pageData.isGetJobsByQC) {
                     type += "1-";
