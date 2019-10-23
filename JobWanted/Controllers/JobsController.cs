@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text;
 using System;
 using System.Net.Http.Headers;
+using System.Security.Authentication;
 using AngleSharp.Html.Parser;
 using Talk.Cache;
 using Newtonsoft.Json;
@@ -311,9 +312,9 @@ namespace JobWanted.Controllers
         /// <returns></returns>
         public async Task<DetailsInfo> GetDetailsInfoByZL(string url)
         {
-            using HttpClient http = new HttpClient();
-            var htmlString = await http.GetStringAsync(url);
-            HtmlParser htmlParser = new HtmlParser();
+            using var client = new HttpClient();
+            var htmlString = await client.GetStringAsync(url);
+            var htmlParser = new HtmlParser();
             var detailsInfo = htmlParser.ParseDocument(htmlString)
                 .QuerySelectorAll(".terminalpage")
                 .Where(t => t.QuerySelectorAll(".terminalpage-left .terminal-ul li").FirstOrDefault() != null)
