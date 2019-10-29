@@ -77,7 +77,7 @@ namespace JobWanted.Controllers
                 return data;
 
             var cityCode = CodesData.GetCityCode(RecruitEnum.猎聘网, city);
-            var url = $"https://www.liepin.cn/zhaopin/?key={key}&dqs={cityCode}&curPage={index}";
+            var url = $"https://www.liepin.com/zhaopin/?key={key}&dqs={cityCode}&curPage={index}";
             using var http = new HttpClient();
             var htmlString = await http.GetStringAsync(url);
             var htmlParser = new HtmlParser();
