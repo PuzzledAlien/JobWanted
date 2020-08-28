@@ -5,12 +5,16 @@ using Microsoft.AspNetCore.Mvc;
 using System.Net.Http;
 using System.Text;
 using System;
+using System.Net.Http.Formatting;
 using System.Net.Http.Headers;
 using System.Security.Authentication;
+using System.Threading;
 using AngleSharp.Html.Parser;
 using Talk.Cache;
 using Newtonsoft.Json;
 using JobWanted.Dto;
+using JobWanted.Extensions;
+using JobWanted.Http;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 /*
@@ -40,14 +44,39 @@ namespace JobWanted.Controllers
             var cityCode = CodesData.GetCityCode(RecruitEnum.智联招聘, city);
             const int pageSize = 90;
             var start = (index - 1) * pageSize;
-            var url = $"https://fe-api.zhaopin.com/c/i/sou?start={start}&pageSize={pageSize}&cityId={cityCode}&salary=0,0&workExperience=-1&education=-1&companyType=-1&employmentType=-1&jobWelfareTag=-1&sortType=publish&kw={key}&kt=3";
+            const string url = "https://fe-api.zhaopin.com/c/i/sou?";
             var handler = new HttpClientHandler
             {
-                AllowAutoRedirect = true,
-                UseCookies = true
+                AllowAutoRedirect = false,
+                UseCookies = false,
+            };
+            var value = new
+            {
+                start,
+                pageSize,
+                cityId = cityCode,
+                salary = "0,0",
+                workExperience = -1,
+                education = -1,
+                companyType = -1,
+                employmentType = -1,
+                jobWelfareTag = -1,
+                sortType = "publish",
+                kw = key,
+                kt = 3
             };
             using var http = new HttpClient(handler);
-            var htmlString = await http.GetStringAsync(url);
+            http.DefaultRequestHeaders.Add("origin", "https://sou.zhaopin.com");
+            http.DefaultRequestHeaders.Add("referer", $"https://sou.zhaopin.com/?jl={cityCode}&kw={key}&kt=3");
+            http.DefaultRequestHeaders.Add("sec-fetch-dest", "empty");
+            http.DefaultRequestHeaders.Add("sec-fetch-mode", "cors");
+            http.DefaultRequestHeaders.Add("sec-fetch-site", "same-site");
+            var formatter = new JsonMediaTypeFormatter();
+            var mediaType = MediaTypeConstants.ApplicationJsonMediaType;
+            var content = await formatter.SerializeAsync(value);
+            var responseMessage = await http.PostAsync(url, content, formatter, mediaType, CancellationToken.None);
+            responseMessage.EnsureSuccessStatusCode();
+            var htmlString = await responseMessage.Content.ReadAsStringAsync();
             var zlResponse = JsonConvert.DeserializeObject<ZlResponse<ZlSouResponse>>(htmlString);
             var jobInfos = zlResponse?.Data?.Results?.Select(t => new JobInfo
             {
